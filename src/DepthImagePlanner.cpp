@@ -73,6 +73,8 @@ bool DepthImagePlanner::FindLowestCostTrajectoryRandomCandidates(
         RapidQuadrocopterTrajectoryGenerator::RapidTrajectoryGenerator&)) {
 
   RandomTrajectoryGenerator trajGenObj(this);
+  trajGenObj.setDepth(_min_depth, _max_depth);
+  trajGenObj.setTime(_min_time, _max_time);
   return FindLowestCostTrajectory(
       trajectory, allocatedComputationTime, costFunctionDefinitionObject,
       costFunctionWrapper, (void*) &trajGenObj,

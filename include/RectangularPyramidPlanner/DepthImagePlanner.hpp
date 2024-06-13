@@ -266,6 +266,21 @@ class DepthImagePlanner {
    */
   bool IsCollisionFreeGroundTruth(CommonMath::Trajectory trajectory);
 
+
+  double _min_depth, _max_depth;
+  double _min_time, _max_time;
+    // Set the range for time distribution
+    void setTime(double min_time, double max_time) {
+        _min_time = min_time;
+        _max_time = max_time;
+    }
+
+    // Set the range for depth distribution
+    void setDepth(double min_depth, double max_depth) {
+        _min_depth = min_depth;
+        _max_depth = max_depth;
+    }
+
   //! Class used to generate random candidate trajectories for the planner to evaluate.
   //! All generated trajectories come to rest at the end of their duration.
   class RandomTrajectoryGenerator {
@@ -286,6 +301,16 @@ class DepthImagePlanner {
           _gen(_rd()),
           _planner(planner) {
     }
+
+      // Set the range for time distribution
+      void setTime(double min_time, double max_time) {
+          _time = std::uniform_real_distribution<>(min_time, max_time);
+      }
+
+      // Set the range for depth distribution
+      void setDepth(double min_depth, double max_depth) {
+          _depth = std::uniform_real_distribution<>(min_depth, max_depth);
+      }
     //! Constructor allowing for custom bounds on the sampling distributions used to generate the trajectories.
     /*!
      * @param minXpix Should be between zero and maxXpix [units of pixels]
