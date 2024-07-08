@@ -60,6 +60,13 @@ class DepthImagePlanner {
                     double vehicleRadiusForPlanning,
                     double minimumCollisionDistance);
 
+  DepthImagePlanner(cv::Mat depthImage, double depthScale, double focalLength,
+                    double principalPointX, double principalPointY,
+                    double physicalVehicleRadius,
+                    double vehicleRadiusForPlanning,
+                    double minimumCollisionDistance,
+                    int maxNumPyramids);
+
   //! Finds the trajectory that travels the fastest in the given exploration direction. The default settings of
   //! RandomTrajectoryGenerator are used to generate candidate trajectories.
   /*!
@@ -73,6 +80,10 @@ class DepthImagePlanner {
   bool FindFastestTrajRandomCandidates(
       RapidQuadrocopterTrajectoryGenerator::RapidTrajectoryGenerator& trajectory,
       double allocatedComputationTime, CommonMath::Vec3 explorationDirection);
+
+bool FindEuclideanCostTrajRandomCandidates(
+    RapidQuadrocopterTrajectoryGenerator::RapidTrajectoryGenerator& trajectory,
+    double allocatedComputationTime, CommonMath::Vec3 explorationDirection); 
 
   //! Finds the trajectory with the lowest user-provided cost. The default settings of
   //! RandomTrajectoryGenerator are used to generate candidate trajectories.
@@ -445,7 +456,7 @@ class DepthImagePlanner {
     double GetCost(
         RapidQuadrocopterTrajectoryGenerator::RapidTrajectoryGenerator& traj) {
       double duration = traj.GetFinalTime();
-      return -_explorationDirection.Dot(traj.GetPosition(duration)) / duration;
+      return -_explorationDirection.Dot(traj.GetPosition(duration));// / duration;
     }
     //! We pass this wrapper function to the planner (see FindLowestCostTrajectory), and this function calls the
     //! related GetCost function to compute the cost of the given trajectory. We structure the code this way so
@@ -454,6 +465,28 @@ class DepthImagePlanner {
         void* ptr2obj,
         RapidQuadrocopterTrajectoryGenerator::RapidTrajectoryGenerator& traj) {
       ExplorationCost* explorationCost = (ExplorationCost*) ptr2obj;
+      return explorationCost->GetCost(traj);
+    }
+   private:
+    CommonMath::Vec3 _explorationDirection;
+  };
+
+  class EuclideanExplorationCost {
+   public:
+    EuclideanExplorationCost(CommonMath::Vec3 explorationDirection)
+        : _explorationDirection(explorationDirection) {
+    }
+
+    double GetCost(
+        RapidQuadrocopterTrajectoryGenerator::RapidTrajectoryGenerator& traj) {
+      double duration = traj.GetFinalTime();
+      return (traj.GetPosition(duration) - _explorationDirection).GetNorm2();
+    }
+
+    static double ExplorationDirectionCostWrapper(
+        void* ptr2obj,
+        RapidQuadrocopterTrajectoryGenerator::RapidTrajectoryGenerator& traj) {
+      EuclideanExplorationCost* explorationCost = (EuclideanExplorationCost*) ptr2obj;
       return explorationCost->GetCost(traj);
     }
    private:

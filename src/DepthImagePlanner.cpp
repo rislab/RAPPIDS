@@ -24,12 +24,27 @@ using namespace CommonMath;
 using namespace RapidQuadrocopterTrajectoryGenerator;
 using namespace RectangularPyramidPlanner;
 
+
 DepthImagePlanner::DepthImagePlanner(cv::Mat depthImage, double depthScale,
                                      double focalLength, double principalPointX,
                                      double principalPointY,
                                      double physicalVehicleRadius,
                                      double vehicleRadiusForPlanning,
                                      double minimumCollisionDistance)
+{
+  DepthImagePlanner(depthImage, depthScale, focalLength, principalPointX, 
+                    principalPointY, physicalVehicleRadius, 
+                    vehicleRadiusForPlanning, minimumCollisionDistance, 
+                    std::numeric_limits<int>::max());
+}
+
+DepthImagePlanner::DepthImagePlanner(cv::Mat depthImage, double depthScale,
+                                     double focalLength, double principalPointX,
+                                     double principalPointY,
+                                     double physicalVehicleRadius,
+                                     double vehicleRadiusForPlanning,
+                                     double minimumCollisionDistance,
+                                     int maxNumPyramids)
     : _depthScale(depthScale),
       _focalLength(focalLength),
       _cx(principalPointX),
@@ -39,13 +54,13 @@ DepthImagePlanner::DepthImagePlanner(cv::Mat depthImage, double depthScale,
       _trueVehicleRadius(physicalVehicleRadius),
       _vehicleRadiusForPlanning(vehicleRadiusForPlanning),
       _minCheckingDist(minimumCollisionDistance),
+      _maxNumPyramids(maxNumPyramids),
       _minimumAllowedThrust(0),  // By default don't allow negative thrust
       _maximumAllowedThrust(30),  // By default limit maximum thrust to about 3g (30 m/s^2)
       _maximumAllowedAngularVelocity(20),  // By default limit maximum angular velocity to 20 rad/s
       _minimumSectionTimeDynamicFeas(0.02),  // By default restrict the dynamic feasibility check to a minimum section duration of 20ms
       _maxPyramidGenTime(1000),  // Don't limit pyramid generation time by default [seconds].
       _pyramidGenTimeNanoseconds(0),
-      _maxNumPyramids(std::numeric_limits<int>::max()),  // Don't limit the number of generated pyramids by default
       _allocatedComputationTime(0),  // To be set when the planner is called
       _numTrajectoriesGenerated(0),
       _numCollisionChecks(0),
@@ -62,6 +77,16 @@ bool DepthImagePlanner::FindFastestTrajRandomCandidates(
   return FindLowestCostTrajectoryRandomCandidates(
       trajectory, allocatedComputationTime, &explorationCost,
       &ExplorationCost::ExplorationDirectionCostWrapper);
+}
+
+bool DepthImagePlanner::FindEuclideanCostTrajRandomCandidates(
+    RapidQuadrocopterTrajectoryGenerator::RapidTrajectoryGenerator& trajectory,
+    double allocatedComputationTime, CommonMath::Vec3 explorationDirection) {
+
+  EuclideanExplorationCost explorationCost(explorationDirection);
+  return FindLowestCostTrajectoryRandomCandidates(
+      trajectory, allocatedComputationTime, &explorationCost,
+      &EuclideanExplorationCost::ExplorationDirectionCostWrapper);
 }
 
 bool DepthImagePlanner::FindLowestCostTrajectoryRandomCandidates(
