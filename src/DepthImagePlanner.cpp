@@ -35,7 +35,7 @@ DepthImagePlanner::DepthImagePlanner(cv::Mat depthImage, double depthScale,
   DepthImagePlanner(depthImage, depthScale, focalLength, principalPointX, 
                     principalPointY, physicalVehicleRadius, 
                     vehicleRadiusForPlanning, minimumCollisionDistance, 
-                    std::numeric_limits<int>::max());
+                    std::numeric_limits<int>::max(), false);
 }
 
 DepthImagePlanner::DepthImagePlanner(cv::Mat depthImage, double depthScale,
@@ -44,7 +44,8 @@ DepthImagePlanner::DepthImagePlanner(cv::Mat depthImage, double depthScale,
                                      double physicalVehicleRadius,
                                      double vehicleRadiusForPlanning,
                                      double minimumCollisionDistance,
-                                     int maxNumPyramids)
+                                     int maxNumPyramids,
+                                     bool enableTimeProfiling)
     : _depthScale(depthScale),
       _focalLength(focalLength),
       _cx(principalPointX),
@@ -55,6 +56,7 @@ DepthImagePlanner::DepthImagePlanner(cv::Mat depthImage, double depthScale,
       _vehicleRadiusForPlanning(vehicleRadiusForPlanning),
       _minCheckingDist(minimumCollisionDistance),
       _maxNumPyramids(maxNumPyramids),
+      _enableTimeProfiling(enableTimeProfiling),
       _minimumAllowedThrust(0),  // By default don't allow negative thrust
       _maximumAllowedThrust(30),  // By default limit maximum thrust to about 3g (30 m/s^2)
       _maximumAllowedAngularVelocity(20),  // By default limit maximum angular velocity to 20 rad/s
@@ -62,8 +64,15 @@ DepthImagePlanner::DepthImagePlanner(cv::Mat depthImage, double depthScale,
       _maxPyramidGenTime(1000),  // Don't limit pyramid generation time by default [seconds].
       _pyramidGenTimeNanoseconds(0),
       _allocatedComputationTime(0),  // To be set when the planner is called
+      _trajectoryGenerationTimeNanoseconds(0),
+      _dynamicFeasibilityTimeNanoseconds(0),
+      _collisionCheckTimeNanoseconds(0),
+      _scoringTimeNanoseconds(0),
       _numTrajectoriesGenerated(0),
+      _numDynamicFeasibilityChecks(0),
+      _numDynamicallyFeasible(0),
       _numCollisionChecks(0),
+      _numCollisionFree(0),
       _pyramidSearchPixelBuffer(2)  // A sample point must be more than 2 pixels away from the edge of a pyramid to use that pyramid for collision checking
 {
   _depthData = reinterpret_cast<const uint16_t*>(depthImage.data);
@@ -135,6 +144,7 @@ bool DepthImagePlanner::FindLowestCostTrajectory(
   assert(pos0.x == 0 && pos0.y == 0 && pos0.z == 0);
 
   RapidTrajectoryGenerator candidateTraj(pos0, vel0, acc0, grav);
+  high_resolution_clock::time_point start;
   while (true) {
 
     if (duration_cast<microseconds>(high_resolution_clock::now() - _startTime)
@@ -143,8 +153,13 @@ bool DepthImagePlanner::FindLowestCostTrajectory(
     }
 
     // Get the next candidate trajectory to evaluate using the provided trajectory generator
+    if (_enableTimeProfiling)
+       start = high_resolution_clock::now();
     int returnVal = (*trajectoryGeneratorWrapper)(trajectoryGeneratorObject,
                                                   candidateTraj);
+    if (_enableTimeProfiling)
+      _trajectoryGenerationTimeNanoseconds += duration_cast<nanoseconds>(
+            high_resolution_clock::now() - start).count();
     if (returnVal < 0) {
       // There are no more candidate trajectories to check. This case should only be reached if
       // the candidate trajectory generator is designed to only give a finite number of candidates
@@ -154,26 +169,50 @@ bool DepthImagePlanner::FindLowestCostTrajectory(
     _numTrajectoriesGenerated++;
 
     // Compute the cost of the trajectory using the provided cost function
+
+    if (_enableTimeProfiling)
+      start = high_resolution_clock::now();
     double cost = (*costFunctionWrapper)(costFunctionDefinitionObject,
                                          candidateTraj);
+    if (_enableTimeProfiling)
+      _scoringTimeNanoseconds += duration_cast<nanoseconds>(
+            high_resolution_clock::now() - start).count();
     if (cost < bestCost) {
       // The trajectory is a lower cost than lowest cost trajectory found so far
 
       // Check whether the trajectory is dynamically feasible
+      if (_enableTimeProfiling)
+        start = high_resolution_clock::now();
       RapidTrajectoryGenerator::InputFeasibilityResult res = candidateTraj
           .CheckInputFeasibility(_minimumAllowedThrust, _maximumAllowedThrust,
                                  _maximumAllowedAngularVelocity,
                                  _minimumSectionTimeDynamicFeas);
+      if (_enableTimeProfiling)
+        _dynamicFeasibilityTimeNanoseconds += duration_cast<nanoseconds>(
+            high_resolution_clock::now() - start).count();
+      _numDynamicFeasibilityChecks++;
       if (res == RapidTrajectoryGenerator::InputFeasible) {
         // The trajectory is dynamically feasible
+        _numDynamicallyFeasible++;
 
         // Check whether the trajectory collides with obstacles
+        if (_enableTimeProfiling)
+          start = high_resolution_clock::now();
         bool isCollisionFree = IsCollisionFree(candidateTraj.GetTrajectory());
+        if (_enableTimeProfiling)
+          _collisionCheckTimeNanoseconds += duration_cast<nanoseconds>(
+            high_resolution_clock::now() - start).count();
         _numCollisionChecks++;
         if (isCollisionFree) {
+          _numCollisionFree++;
           feasibleTrajFound = true;
           bestCost = cost;
+          if (_enableTimeProfiling)
+            start = high_resolution_clock::now();
           trajectory = RapidTrajectoryGenerator(candidateTraj);
+          if (_enableTimeProfiling)
+            _trajectoryGenerationTimeNanoseconds += duration_cast<nanoseconds>(
+                high_resolution_clock::now() - start).count();
         }
       }
     }

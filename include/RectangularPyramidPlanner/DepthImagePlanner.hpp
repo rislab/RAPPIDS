@@ -65,7 +65,8 @@ class DepthImagePlanner {
                     double physicalVehicleRadius,
                     double vehicleRadiusForPlanning,
                     double minimumCollisionDistance,
-                    int maxNumPyramids);
+                    int maxNumPyramids,
+                    bool enableTimeProfiling);
 
   //! Finds the trajectory that travels the fastest in the given exploration direction. The default settings of
   //! RandomTrajectoryGenerator are used to generate candidate trajectories.
@@ -163,10 +164,52 @@ bool FindEuclideanCostTrajRandomCandidates(
     return _numCollisionChecks;
   }
   /*!
+   * @return The number of collision free trajectories
+   */
+  int GetNumCollisionFree() {
+    return _numCollisionFree;
+  }
+  /*!
+   * @return The number of trajectories checked for dynamic feasibility
+   */
+  int GetNumDynamicFeasibilityChecks() {
+    return _numDynamicFeasibilityChecks;
+  }
+  /*!
+   * @return The number of dynamically feasible trajectories
+   */
+  int GetNumDynamicallyFeasible() {
+    return _numDynamicallyFeasible;
+  }
+  /*!
    * @return The time spent inside the InflatePyramid function [seconds]
    */
   double GetInflatePyramidTime() {
     return _pyramidGenTimeNanoseconds * 1e-9;
+  }
+  /*!
+   * @return The time spent generating primitives
+   */
+  double GetTrajectoryGenerationTime() {
+    return _trajectoryGenerationTimeNanoseconds * 1e-9;
+  }
+  /*!
+   * @return The time spent inside the CheckInputFeasibility function [seconds]
+   */
+  double GetDynamicFeasibilityTime() {
+    return _dynamicFeasibilityTimeNanoseconds * 1e-9;
+  }
+  /*!
+   * @return The time spent inside the CheckInputFeasibility function [seconds]
+   */
+  double GetCollisionCheckTime() {
+    return _collisionCheckTimeNanoseconds * 1e-9;
+  }
+  /*!
+   * @return The time spent inside the CheckInputFeasibility function [seconds]
+   */
+  double GetScoringTime() {
+    return _scoringTimeNanoseconds * 1e-9;
   }
   double GetFocalLength() {
     return _focalLength;
@@ -540,10 +583,27 @@ bool FindEuclideanCostTrajRandomCandidates(
   //! The time at which the planner starts.
   std::chrono::high_resolution_clock::time_point _startTime;
 
+  //! Enables time profiling of trajectory generation components (will reduce total primitives evaluated).
+  bool _enableTimeProfiling;
+  //! The amount of time spent generating trajectories [nanoseconds]
+  double _trajectoryGenerationTimeNanoseconds;
+  //! The amount of time spent checking dynamic feasibility [nanoseconds]
+  double _dynamicFeasibilityTimeNanoseconds;
+  //! The amount of time spent scoring primitives [nanoseconds]
+  double _scoringTimeNanoseconds;
+  //! The amount of time spent checking for collision [nanoseconds]
+  double _collisionCheckTimeNanoseconds;
+
   //! Counter used to keep track of how many trajectories we have generated/evaluated
   int _numTrajectoriesGenerated;
+  //! Counter used to keep track of how many trajectories we have checked for dynamic feasibility
+  int _numDynamicFeasibilityChecks;
+  //! Counter used to keep track of how many trajectories are dynamically feasible
+  int _numDynamicallyFeasible;
   //! Counter used to keep track of how many trajectories we have checked for collisions
   int _numCollisionChecks;
+  //! Counter used to keep track of how many trajectories are collision free
+  int _numCollisionFree;
 
   //! If the endpoint of a trajectory is within this many pixels of the lateral face of a pyramid, we will not use that pyramid
   //! for collision checking. This is to prevent the scenario where a trajectory intersects the lateral face of a pyramid, and
