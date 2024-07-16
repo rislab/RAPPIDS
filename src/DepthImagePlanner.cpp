@@ -147,9 +147,19 @@ bool DepthImagePlanner::FindLowestCostTrajectory(
   high_resolution_clock::time_point start;
   while (true) {
 
-    if (duration_cast<microseconds>(high_resolution_clock::now() - _startTime)
-        .count() > int(_allocatedComputationTime * 1e6)) {
-      break;
+    if (_enableTimeProfiling) {
+      double accountedForTime = (_trajectoryGenerationTimeNanoseconds + 
+      _scoringTimeNanoseconds + _dynamicFeasibilityTimeNanoseconds +
+      _collisionCheckTimeNanoseconds);
+      if (accountedForTime > int(_allocatedComputationTime * 1e9)) {
+        break;
+      }
+    }
+    else {
+      if (duration_cast<microseconds>(high_resolution_clock::now() - _startTime)
+          .count() > int(_allocatedComputationTime * 1e6)) {
+        break;
+      }
     }
 
     // Get the next candidate trajectory to evaluate using the provided trajectory generator
